@@ -62,28 +62,59 @@ async function initializeEmailService() {
     return;
   }
 
-  // Try Ethereal (free testing service) - automatically creates account
+  // Try Ethereal with provided credentials or create new account
   try {
     const nodemailer = require('nodemailer');
-    const testAccount = await nodemailer.createTestAccount();
+    
+    // Use provided Ethereal credentials if available
+    const etherealUser = process.env.ETHEREAL_USER || 'bettye.eichmann@ethereal.email';
+    const etherealPass = process.env.ETHEREAL_PASS || 'CRdFAaXpVBAu9Huq9G';
     
     global.etherealTransporter = nodemailer.createTransporter({
       host: 'smtp.ethereal.email',
       port: 587,
       secure: false,
       auth: {
-        user: testAccount.user,
-        pass: testAccount.pass,
+        user: etherealUser,
+        pass: etherealPass,
       },
     });
+    
+    // Test the connection
+    await global.etherealTransporter.verify();
     
     emailService = 'ethereal';
     console.log('✅ Ethereal email service initialized (test emails)');
     console.log(`📧 View sent emails at: https://ethereal.email`);
-    console.log(`📧 Login: ${testAccount.user} / ${testAccount.pass}`);
+    console.log(`📧 Login: ${etherealUser} / ${etherealPass}`);
+    console.log(`📧 Account: Bettye Eichmann`);
     return;
   } catch (error) {
-    console.log('⚠️  Could not initialize Ethereal, using console logging');
+    console.log('⚠️  Could not initialize Ethereal with provided credentials, trying to create new account...');
+    
+    // Fallback to creating new account
+    try {
+      const nodemailer = require('nodemailer');
+      const testAccount = await nodemailer.createTestAccount();
+      
+      global.etherealTransporter = nodemailer.createTransporter({
+        host: 'smtp.ethereal.email',
+        port: 587,
+        secure: false,
+        auth: {
+          user: testAccount.user,
+          pass: testAccount.pass,
+        },
+      });
+      
+      emailService = 'ethereal';
+      console.log('✅ Ethereal email service initialized with new account');
+      console.log(`📧 View sent emails at: https://ethereal.email`);
+      console.log(`📧 Login: ${testAccount.user} / ${testAccount.pass}`);
+      return;
+    } catch (fallbackError) {
+      console.log('⚠️  Could not initialize Ethereal at all, using console logging');
+    }
   }
 
   // Fallback to console logging
