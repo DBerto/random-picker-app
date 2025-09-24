@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Random Picker</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 2.5em;
+            font-weight: 300;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.1em;
+        }
+
+        .status-card {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-left: 4px solid #667eea;
+        }
+
+        .status-text {
+            color: #333;
+            font-size: 1.1em;
+            margin-bottom: 10px;
+        }
+
+        .participant-count {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .pick-button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.2em;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 600;
+            min-width: 200px;
+        }
+
+        .pick-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .pick-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .result-card {
+            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-top: 30px;
+            animation: slideInUp 0.5s ease;
+        }
+
+        .result-title {
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            font-weight: 300;
+        }
+
+        .selected-name {
+            font-size: 2.2em;
+            font-weight: 600;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .result-timestamp {
+            font-size: 0.9em;
+            opacity: 0.9;
+        }
+
+        .error-card {
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-top: 20px;
+            animation: slideInUp 0.5s ease;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #ffffff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+
+        .admin-link {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            color: #999;
+            text-decoration: none;
+            font-size: 0.8em;
+            padding: 5px 10px;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .admin-link:hover {
+            background: #f0f0f0;
+            color: #667eea;
+        }
+
+        @keyframes slideInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 30px 20px;
+                margin: 10px;
+            }
+            
+            h1 {
+                font-size: 2em;
+            }
+            
+            .selected-name {
+                font-size: 1.8em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/admin.html" class="admin-link">Admin</a>
+        
+        <h1>🎲 Random Picker</h1>
+        <p class="subtitle">Get your random selection with just one click!</p>
+        
+        <div class="status-card">
+            <div class="status-text" id="statusText">Loading...</div>
+            <div class="participant-count" id="participantCount"></div>
+        </div>
+        
+        <button class="pick-button" id="pickButton" onclick="makePick()" disabled>
+            <span id="buttonText">Loading...</span>
+        </button>
+        
+        <div id="resultContainer"></div>
+    </div>
+
+    <script>
+        let canPick = false;
+
+        // Load status on page load
+        window.addEventListener('load', checkStatus);
+
+        async function checkStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                
+                canPick = data.canPick;
+                
+                const statusText = document.getElementById('statusText');
+                const participantCount = document.getElementById('participantCount');
+                const pickButton = document.getElementById('pickButton');
+                const buttonText = document.getElementById('buttonText');
+                
+                if (data.canPick) {
+                    statusText.textContent = data.message;
+                    statusText.style.color = '#2d5a27';
+                    pickButton.disabled = false;
+                    buttonText.textContent = 'Make Your Pick!';
+                } else {
+                    statusText.textContent = data.message;
+                    statusText.style.color = '#721c24';
+                    pickButton.disabled = true;
+                    buttonText.textContent = 'Already Used';
+                }
+                
+                participantCount.textContent = `${data.totalParticipants} participants available`;
+                
+            } catch (error) {
+                console.error('Error checking status:', error);
+                document.getElementById('statusText').textContent = 'Error loading status';
+                document.getElementById('statusText').style.color = '#721c24';
+            }
+        }
+
+        async function makePick() {
+            if (!canPick) return;
+            
+            const pickButton = document.getElementById('pickButton');
+            const buttonText = document.getElementById('buttonText');
+            const resultContainer = document.getElementById('resultContainer');
+            
+            // Show loading state
+            pickButton.disabled = true;
+            buttonText.innerHTML = '<span class="loading"></span>Picking...';
+            
+            // Clear previous results
+            resultContainer.innerHTML = '';
+            
+            try {
+                const response = await fetch('/api/pick', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Show success result
+                    resultContainer.innerHTML = `
+                        <div class="result-card">
+                            <div class="result-title">🎉 Your Random Pick:</div>
+                            <div class="selected-name">${data.selectedParticipant}</div>
+                            <div class="result-timestamp">Selected on ${new Date(data.timestamp).toLocaleString()}</div>
+                        </div>
+                    `;
+                    
+                    // Update button state
+                    buttonText.textContent = 'Used';
+                    canPick = false;
+                    
+                    // Update status
+                    document.getElementById('statusText').textContent = 'You have made your pick!';
+                    document.getElementById('statusText').style.color = '#721c24';
+                    
+                } else {
+                    throw new Error(data.error || 'Unknown error occurred');
+                }
+                
+            } catch (error) {
+                console.error('Error making pick:', error);
+                
+                // Show error result
+                resultContainer.innerHTML = `
+                    <div class="error-card">
+                        <strong>❌ Error:</strong> ${error.message || 'Failed to make pick. Please try again.'}
+                    </div>
+                `;
+                
+                // Reset button if it was a temporary error
+                if (canPick) {
+                    pickButton.disabled = false;
+                    buttonText.textContent = 'Make Your Pick!';
+                }
+            }
+        }
+
+        // Add some interactive feedback
+        document.getElementById('pickButton').addEventListener('mouseenter', function() {
+            if (!this.disabled) {
+                this.style.transform = 'translateY(-2px)';
+            }
+        });
+
+        document.getElementById('pickButton').addEventListener('mouseleave', function() {
+            if (!this.disabled) {
+                this.style.transform = 'translateY(0)';
+            }
+        });
+    </script>
+</body>
+</html>
