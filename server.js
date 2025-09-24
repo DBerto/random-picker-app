@@ -9,6 +9,9 @@ const { v4: uuidv4 } = require('uuid');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Trust proxy for Railway/production deployment
+app.set('trust proxy', 1);
+
 // Security middleware
 app.use(helmet({
   contentSecurityPolicy: {
@@ -21,13 +24,18 @@ app.use(helmet({
   },
 }));
 
-// Rate limiting
+// Rate limiting - more permissive for POC
 const limiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 20,
-  message: 'Too many requests from this IP, please try again later.',
+  max: 50, // Increased limit for testing
+  message: { error: 'Too many requests from this IP, please try again later.' },
   standardHeaders: true,
   legacyHeaders: false,
+  trustProxy: true, // Explicitly trust proxy
+  skip: (req) => {
+    // Skip rate limiting for health checks or specific paths if needed
+    return req.path === '/health' || req.path === '/api/status';
+  }
 });
 app.use(limiter);
 
@@ -271,6 +279,11 @@ function getLoserEmailTemplate(roomName, winnerName) {
 }
 
 // API Routes
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // Get status - check if user can pick (legacy support)
 app.get('/api/status', async (req, res) => {
